@@ -3,7 +3,7 @@ extern crate serde_json;
 
 use crate::url::{get_type, Type};
 use serde::Deserialize;
-use serde_json::from_reader;
+use serde_json::from_str;
 use std::io::Read;
 
 #[derive(Deserialize)]
@@ -41,8 +41,11 @@ pub struct APIResult {
     pub action: Type,
     pub result: String,
 }
-pub fn load_har<T: Read>(har: T) -> Vec<APIResult> {
-    from_reader::<T, Har>(har)
+pub fn load_har<T: Read>(mut har: T) -> Vec<APIResult> {
+    let mut val = String::new();
+    har.read_to_string(&mut val)
+        .expect("Failed to read har file.");
+    from_str::<Har>(val.as_str())
         .unwrap()
         .log
         .entries
