@@ -81,9 +81,9 @@ impl GroupData {
         let mut foldergroup = None;
         for i in har {
             if i.url == FOLDERGROUP_URL {
-                foldergroup = Some(&i.url);
+                foldergroup = Some(&i.result);
             } else if i.url.starts_with(TASKFOLDER_URL_PREFIX) {
-                taskfolders = Some(&i.url);
+                taskfolders = Some(&i.result);
             }
         }
         Self::from_str(taskfolders.unwrap().as_str(), foldergroup.unwrap().as_str())
