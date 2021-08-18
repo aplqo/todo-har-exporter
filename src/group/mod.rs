@@ -2,13 +2,9 @@ extern crate regex;
 extern crate serde;
 extern crate serde_json;
 
-use crate::har::APIResult;
+use crate::{har::APIResult, url::Type};
 use serde::Deserialize;
 use std::{collections::HashMap, vec::Vec};
-
-const TASKFOLDER_URL_PREFIX: &str =
-    "https://substrate.office.com/todo/api/v1/taskfolders?$select=*";
-const FOLDERGROUP_URL: &str = "https://substrate.office.com/todo/api/v1/foldergroups";
 
 #[derive(Deserialize)]
 struct Folder {
@@ -76,14 +72,14 @@ impl GroupData {
                 .collect(),
         }
     }
-    pub fn from_har(har: &Vec<APIResult>) -> GroupData {
+    pub fn from_har(har: &[APIResult]) -> GroupData {
         let mut taskfolders = None;
         let mut foldergroup = None;
         for i in har {
-            if i.url == FOLDERGROUP_URL {
-                foldergroup = Some(&i.result);
-            } else if i.url.starts_with(TASKFOLDER_URL_PREFIX) {
-                taskfolders = Some(&i.result);
+            match i.action {
+                Type::TaskGroups => foldergroup = Some(&i.result),
+                Type::TaskLists => taskfolders = Some(&i.result),
+                _ => (),
             }
         }
         Self::from_str(taskfolders.unwrap().as_str(), foldergroup.unwrap().as_str())
@@ -94,5 +90,8 @@ impl GroupData {
             name: &list.name,
             group: list.group.as_ref().and_then(|gid| self.groups.get(gid)),
         }
+    }
+    pub fn list_count(&self) -> usize {
+        self.folders.len()
     }
 }

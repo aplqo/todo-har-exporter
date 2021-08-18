@@ -1,6 +1,7 @@
 extern crate serde;
 extern crate serde_json;
 
+use crate::url::{get_type, Type};
 use serde::Deserialize;
 use serde_json::from_reader;
 use std::io::Read;
@@ -37,6 +38,7 @@ struct Har {
 
 pub struct APIResult {
     pub url: String,
+    pub action: Type,
     pub result: String,
 }
 pub fn load_har<T: Read>(har: T) -> Vec<APIResult> {
@@ -46,16 +48,19 @@ pub fn load_har<T: Read>(har: T) -> Vec<APIResult> {
         .entries
         .into_iter()
         .filter_map(|x| {
-            if x.response.content.mime_type == "application/json"
-                && x.response.content.text.is_some()
-            {
-                Some(APIResult {
-                    url: x.request.url,
-                    result: x.response.content.text.unwrap(),
-                })
-            } else {
-                None
+            if x.response.content.mime_type == "application/json" {
+                if let Some(r) = x.response.content.text {
+                    let t = get_type(x.request.url.as_str());
+                    if t != Type::Other {
+                        return Some(APIResult {
+                            url: x.request.url,
+                            action: t,
+                            result: r,
+                        });
+                    }
+                }
             }
+            None
         })
         .collect()
 }

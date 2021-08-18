@@ -1,33 +1,69 @@
-extern crate lazy_static;
 extern crate regex;
 
 use crate::{group::GroupData, har::APIResult};
-use lazy_static::lazy_static;
-use regex::Regex;
 use std::{
     fs::{create_dir_all, OpenOptions},
-    io::{Error, Write},
-    path::PathBuf,
+    io::{Result, Write},
+    path::{Path, PathBuf},
 };
 
-lazy_static! {
-    static ref TASKLIST_REGEX:Regex = Regex::new(r#"https://substrate.office.com/todo/api/v1/taskfolders/(.+)/tasks\?\$expand=LinkedEntity&\$select=\*"#).unwrap();
+fn write_file(path: &Path, value: &str) -> Result<()> {
+    {
+        let parent = path.parent().unwrap();
+        if !parent.exists() {
+            create_dir_all(parent)?;
+        }
+    }
+    OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(path)?
+        .write_all(value.as_bytes())
+        .map(|_| ())
 }
 
-pub fn export(group_info: &GroupData, task_list: &APIResult) -> Result<(), Error> {
-    let task = match TASKLIST_REGEX.captures(&task_list.url) {
-        Some(c) => group_info.get_tasklist(c.get(1).unwrap().as_str()),
-        None => return Ok(()),
-    };
-    let mut buf = PathBuf::from("./json");
+struct MyPathBuf {
+    val: PathBuf,
+}
+impl MyPathBuf {
+    fn push(&mut self, val: &str) -> &mut Self {
+        self.val.push(val);
+        self
+    }
+    fn set_json(&mut self) -> &mut Self {
+        match self.val.extension() {
+            Some(v) => {
+                let mut ext = v.to_owned();
+                ext.push(".json");
+                self.val.set_extension(ext)
+            }
+            None => self.val.set_extension("json"),
+        };
+        self
+    }
+    fn from(p: &str) -> Self {
+        Self {
+            val: PathBuf::from(p),
+        }
+    }
+}
+
+pub fn export_tasks(group_info: &GroupData, task_list: &APIResult, id: &str) -> Result<()> {
+    write_file(
+        &MyPathBuf::from("./tasklists/by-id").push(id).set_json().val,
+        task_list.result.as_str(),
+    )?;
+
+    let mut buf = MyPathBuf::from("./tasklists/by-name");
+    let task = group_info.get_tasklist(id);
     if let Some(g) = task.group {
         buf.push(g);
     }
-    buf.push(task.name);
-    create_dir_all(buf.parent().unwrap())?;
-    OpenOptions::new()
-        .create_new(true)
-        .open(buf.as_path())?
-        .write(task_list.result.as_bytes())
-        .map(|_| ())
+    write_file(
+        &buf.push(task.name).set_json().val,
+        task_list.result.as_str(),
+    )
+}
+pub fn export_json(name: &str, data: &str) -> Result<()> {
+    write_file(&MyPathBuf::from(".").push(name).set_json().val, data)
 }
